@@ -12,7 +12,7 @@ const path = require('path');
     console.log('Pagina creata con successo.');
 
     // Attiva il protocollo del devtools su questa pagina
-    await page.target().createCDPSession();
+    await page.createCDPSession();
     console.log('Protocollo DevTools attivato.');
 
     // Cattura le risposte JSON
@@ -37,8 +37,9 @@ const path = require('path');
         const url = request.url();
 
         // Modifica l'URL di interesse
-        if (url.includes('https://api.portal.piattaformaunicanazionale.it/v1/chargepoints/public/map/search')) {
+        if (url.includes('https://api.pun.piattaformaunicanazionale.it/v1/chargepoints/public/map/search')) {
             try {
+                console.log('Map search');
                 const responseText = await response.text();
                 // Controlla se il corpo della risposta è valido
                 if (responseText.trim()) {
