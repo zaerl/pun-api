@@ -1,107 +1,160 @@
-const puppeteer = require('puppeteer');
-const fs = require('fs');
-const path = require('path');
+import puppeteer from 'puppeteer';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
-(async () => {
-    console.log('Avvio dello script...');
+// Get the directory name in ES modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-    const browser = await puppeteer.launch();
-    console.log('Browser avviato con successo.');
+// Configuration
+const CONFIG = {
+  targetUrl: 'https://www.piattaformaunicanazionale.it/idr',
+  apiEndpoint: 'https://api.pun.piattaformaunicanazionale.it/v1/chargepoints/public/map/search',
+  networkIdleTimeout: 30000,
+  outputDirectory: path.join(__dirname, 'output')
+};
+
+/**
+ * Main function to run the scraping process
+ */
+async function main() {
+  console.log('Starting script...');
+
+  let browser;
+
+  try {
+    browser = await puppeteer.launch();
+    console.log('Browser launched successfully.');
 
     const page = await browser.newPage();
-    console.log('Pagina creata con successo.');
+    console.log('Page created successfully.');
 
-    // Attiva il protocollo del devtools su questa pagina
+    // Activate DevTools protocol
     await page.createCDPSession();
-    console.log('Protocollo DevTools attivato.');
+    console.log('DevTools protocol activated.');
 
-    // Cattura le risposte JSON
+    // Prepare output directory
+    await prepareOutputDirectory();
+
+    // Set up response collection
     const responses = [];
-
-    // Svuota la cartella di output prima di iniziare
-    const outputDirectory = path.join(__dirname, 'output');
-    console.log('Percorso della cartella di output:', outputDirectory);
-
-    if (fs.existsSync(outputDirectory)) {
-        fs.readdirSync(outputDirectory).forEach((file) => {
-            const filePath = path.join(outputDirectory, file);
-            fs.unlinkSync(filePath);
-            console.log(`Eliminato ${file}`);
-        });
-    } else {
-        console.log('La cartella di output non esiste. Verrà creata.');
-    }
-
     page.on('response', async (response) => {
-        const request = response.request();
-        const url = request.url();
+      const request = response.request();
+      const url = request.url();
 
-        // Modifica l'URL di interesse
-        if (url.includes('https://api.pun.piattaformaunicanazionale.it/v1/chargepoints/public/map/search')) {
-            try {
-                console.log('Map search');
-                const responseText = await response.text();
-                // Controlla se il corpo della risposta è valido
-                if (responseText.trim()) {
-                    responses.push(responseText);
-                }
-            } catch (error) {
-                console.error('Errore durante il caricamento del corpo della risposta:', error.message);
-            }
+      if(url.includes(CONFIG.apiEndpoint)) {
+        try {
+          console.log('Map search response detected');
+          const responseText = await response.text();
+          if(responseText.trim()) {
+            responses.push(responseText);
+          }
+        } catch (error) {
+          console.error('Error processing response:', error.message);
         }
+      }
     });
 
-    // Naviga verso la pagina di interesse
-    console.log('Navigazione verso la pagina...');
-    await page.goto('https://www.piattaformaunicanazionale.it/idr');
-    console.log('Pagina caricata.');
+    // Navigate to the target page
+    console.log('Navigating to the page...');
+    await page.goto(CONFIG.targetUrl);
+    console.log('Page loaded.');
 
-    // Attendi che il traffico di rete si calmi
-    console.log('Attesa del traffico di rete...');
-    await waitForNetworkIdle(page, 30000); // Attendi 30 secondi
+    // Wait for network traffic to settle
+    console.log('Waiting for network traffic to settle...');
+    await waitForNetworkIdle(page, CONFIG.networkIdleTimeout);
 
-    // Salva le risposte JSON in file nella directory 'output'
-    console.log('Salvataggio delle risposte JSON...');
-    if (!fs.existsSync(outputDirectory)) {
-        fs.mkdirSync(outputDirectory);
+    // Save responses
+    await saveResponses(responses);
+
+    console.log('Process completed successfully.');
+  } catch (error) {
+    console.error('An error occurred:', error);
+  } finally {
+    if(browser) {
+      console.log('Closing browser...');
+      await browser.close();
+      console.log('Browser closed.');
     }
+  }
+}
 
-    responses.forEach((response, index) => {
-        const fileName = `response_${index}_${Date.now()}.json`;
-        const filePath = path.join(outputDirectory, fileName);
-        fs.writeFileSync(filePath, response);
-        console.log(`Salvato ${fileName}`);
-    });
+/**
+ * Prepare the output directory by cleaning it if it exists
+ */
+async function prepareOutputDirectory() {
+  console.log('Output directory path:', CONFIG.outputDirectory);
 
-    // Chiudi il browser
-    console.log('Chiusura del browser...');
-    await browser.close();
+  if(fs.existsSync(CONFIG.outputDirectory)) {
+    const files = fs.readdirSync(CONFIG.outputDirectory);
 
-    console.log('Salvataggio completato. Browser chiuso.');
-})();
+    for(const file of files) {
+      const filePath = path.join(CONFIG.outputDirectory, file);
+      fs.unlinkSync(filePath);
+      console.log(`Deleted ${file}`);
+    }
+  } else {
+    console.log('Output directory does not exist. It will be created.');
+  }
+}
 
+/**
+ * Save the collected responses to JSON files
+ * @param {Array} responses - Array of response strings to save
+ */
+async function saveResponses(responses) {
+  console.log('Saving JSON responses...');
+
+  if(!fs.existsSync(CONFIG.outputDirectory)) {
+    fs.mkdirSync(CONFIG.outputDirectory, { recursive: true });
+  }
+
+  const timestamp = Date.now();
+
+  for(let i = 0; i < responses.length; i++) {
+    const fileName = `response_${i}_${timestamp}.json`;
+    const filePath = path.join(CONFIG.outputDirectory, fileName);
+    fs.writeFileSync(filePath, responses[i]);
+    console.log(`Saved ${fileName}`);
+  }
+}
+
+/**
+ * Wait for network traffic to become idle
+ * @param {Page} page - Puppeteer page object
+ * @param {number} timeout - Timeout in milliseconds
+ */
 async function waitForNetworkIdle(page, timeout) {
+  return new Promise((resolve) => {
     let lastRequestTime = Date.now();
     let idleTimeout;
 
-    function onRequest() {
-        lastRequestTime = Date.now();
+    const onRequest = () => {
+      lastRequestTime = Date.now();
+      clearTimeout(idleTimeout);
+      idleTimeout = setTimeout(checkIdle, timeout);
+    };
+
+    const checkIdle = () => {
+      if(Date.now() - lastRequestTime >= timeout) {
+        console.log('Network traffic is idle. Continuing...');
+        resolve();
+      } else {
         clearTimeout(idleTimeout);
         idleTimeout = setTimeout(checkIdle, timeout);
-    }
-
-    function checkIdle() {
-        if (Date.now() - lastRequestTime >= timeout) {
-            console.log('Il traffico di rete è calmo. Continua...');
-        } else {
-            clearTimeout(idleTimeout);
-            idleTimeout = setTimeout(checkIdle, timeout);
-        }
-    }
+      }
+    };
 
     page.on('request', onRequest);
 
-    await new Promise(resolve => setTimeout(resolve, timeout));
-
-    page.off('request', onRequest);
+    // Initial timeout
+    idleTimeout = setTimeout(checkIdle, timeout);
+  });
 }
+
+// Run the main function
+main().catch(error => {
+  console.error('Unhandled error:', error);
+  process.exit(1);
+});
