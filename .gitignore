@@ -1,9 +1,8 @@
 *.Identifier
 tmp*
 script/output/*
+node_modules
 
-package-lock.json
-package.json
 data/rete_ricarica_veicoli_elettrici_api.jsonl
 
 bin/*
