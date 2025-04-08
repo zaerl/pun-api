@@ -6,7 +6,8 @@
   "type": "module",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "clean": "rm -f script/output/*.json"
+    "clean": "rm -f script/output/*.json",
+    "crawl": "node script/pun-crawl.js"
   },
   "author": "",
   "license": "ISC",

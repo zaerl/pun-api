@@ -41,7 +41,7 @@ while [ $attempt -le $max_attempts ]; do
         break
     else
         echo "Nessun file JSON trovato. Eseguo il comando node (Tentativo $attempt di $max_attempts)..."
-        node rete_ricarica_veicoli_elettrici.js
+        node pun-crawl.js
     fi
 
     attempt=$((attempt+1))
