@@ -3,8 +3,10 @@
   "version": "1.0.0",
   "description": "PUN API",
   "main": "index.js",
+  "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "clean": "rm -f script/output/*.json"
   },
   "author": "",
   "license": "ISC",
