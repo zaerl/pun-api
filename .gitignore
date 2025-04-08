@@ -5,3 +5,5 @@ script/output/*
 package-lock.json
 package.json
 data/rete_ricarica_veicoli_elettrici_api.jsonl
+
+bin/
